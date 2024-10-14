@@ -1,0 +1,62 @@
+<li>
+  <div class="flex items-center">
+    <button
+      *ngIf="node.isFolder"
+      (click)="toggle()"
+      class="mr-2 focus:outline-none flex items-center"
+    >
+      <svg
+        *ngIf="node.expanded"
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M19 9l-7 7-7-7"
+        />
+      </svg>
+      <svg
+        *ngIf="!node.expanded"
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 5l7 7-7 7"
+        />
+      </svg>
+      <span
+        *ngIf="node.isFolder"
+        class="cursor-pointer text-gray-700 hover:bg-gray-200 px-2 py-1 rounded font-semibold"
+      >
+        {{ node.name }}
+      </span>
+    </button>
+    <span
+      *ngIf="!node.isFolder"
+      (click)="selectFile()"
+      class="cursor-pointer text-gray-700 hover:bg-gray-200 px-2 py-1 rounded"
+    >
+      {{ node.name }}
+    </span>
+  </div>
+  <!-- Render children if folder is expanded -->
+  <ul *ngIf="node.isFolder && node.expanded" class="ml-4 mt-1 space-y-1">
+    <ng-container *ngFor="let child of node.children">
+      <app-tree-node
+        [node]="child"
+        (fileSelected)="onFileSelected($event)"
+      ></app-tree-node>
+    </ng-container>
+  </ul>
+</li>

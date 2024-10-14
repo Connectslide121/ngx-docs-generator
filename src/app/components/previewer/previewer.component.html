@@ -1,0 +1,58 @@
+<div class="mt-4 flex space-x-4">
+  <button
+    *ngIf="
+      generatedDocumentation && objectKeys(generatedDocumentation).length > 0
+    "
+    (click)="selectedOutputType = 'documentation'"
+    [class.font-bold]="selectedOutputType === 'documentation'"
+    class="text-blue-500"
+  >
+    Documentation
+  </button>
+  <button
+    *ngIf="
+      generatedInstructions && objectKeys(generatedInstructions).length > 0
+    "
+    (click)="selectedOutputType = 'instructions'"
+    [class.font-bold]="selectedOutputType === 'instructions'"
+    class="text-green-500"
+  >
+    User Instructions
+  </button>
+</div>
+
+<div *ngIf="currentData && objectKeys(currentData).length > 0" class="mt-8">
+  <div class="flex">
+    <!-- Sidebar -->
+    <div class="w-1/4 bg-gray-100 p-4 rounded-md overflow-auto">
+      <h2 class="text-lg font-semibold mb-4">{{ currentTitle }}</h2>
+      <ul class="space-y-2">
+        <ng-container *ngFor="let node of currentTree">
+          <app-tree-node
+            [node]="node"
+            (fileSelected)="onDocumentSelect($event)"
+          ></app-tree-node>
+        </ng-container>
+      </ul>
+    </div>
+
+    <!-- Content Display Area -->
+    <div class="w-3/4 p-4">
+      <div *ngIf="selectedDocumentKey; else placeholder">
+        <!-- Render the markdown content -->
+        <markdown
+          class="prose"
+          lineNumbers
+          clipboard
+          ngPreserveWhitespaces
+          [data]="currentData[selectedDocumentKey]!.content"
+        ></markdown>
+      </div>
+      <ng-template #placeholder>
+        <p class="text-gray-500 italic">
+          Select a document from the sidebar to view its content.
+        </p>
+      </ng-template>
+    </div>
+  </div>
+</div>

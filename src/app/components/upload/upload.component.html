@@ -1,7 +1,10 @@
 <div class="container mx-auto p-4">
   <div class="bg-white shadow-md rounded-lg overflow-hidden">
-    <div class="p-6">
-      <h2 class="text-2xl font-bold mb-4">Upload Project Files</h2>
+    <div class="p-6 space-y-4">
+      <div class="flex gap-4 items-center">
+        <img src="../../../assets/images/ngx-docs.png" class="w-16" />
+        <h2 class="text-2xl font-bold">NGX docs generator</h2>
+      </div>
       <div class="space-y-4">
         <div class="flex items-center justify-center w-full">
           <label
@@ -140,103 +143,10 @@
         <p class="text-sm text-red-500">{{ errorMessage }}</p>
       </div>
 
-      <div class="mt-4 flex space-x-4">
-        <button
-          (click)="selectedOutputType = 'documentation'"
-          [class.font-bold]="selectedOutputType === 'documentation'"
-          class="text-blue-500"
-        >
-          Documentation
-        </button>
-        <button
-          (click)="selectedOutputType = 'instructions'"
-          [class.font-bold]="selectedOutputType === 'instructions'"
-          class="text-green-500"
-        >
-          User Instructions
-        </button>
-      </div>
-
-      <div
-        *ngIf="selectedOutputType === 'documentation' && generatedDocumentation"
-        class="mt-8"
-      >
-        <div class="flex">
-          <!-- Sidebar -->
-          <div class="w-1/4 bg-gray-100 p-4 rounded-md">
-            <h2 class="text-lg font-semibold mb-4">Generated Documents</h2>
-            <ul>
-              <li
-                *ngFor="let docKey of generatedDocumentation | keys"
-                (click)="onDocumentSelect(docKey)"
-                [class.bg-blue-100]="docKey === selectedDocumentKey"
-                class="p-2 cursor-pointer hover:bg-blue-50 rounded"
-              >
-                {{ docKey }}
-              </li>
-            </ul>
-          </div>
-
-          <!-- Content Display Area -->
-          <div class="w-3/4 p-4">
-            <div *ngIf="selectedDocumentKey; else placeholder">
-              <h3 class="text-xl font-medium mb-4">
-                {{ selectedDocumentKey }}
-              </h3>
-              <!-- Render the markdown content -->
-              <markdown
-                ngPreserveWhitespaces
-                [data]="generatedDocumentation[selectedDocumentKey]"
-              ></markdown>
-            </div>
-            <ng-template #placeholder>
-              <p class="text-gray-500 italic">
-                Select a document from the sidebar to view its content.
-              </p>
-            </ng-template>
-          </div>
-        </div>
-      </div>
-      <div
-        *ngIf="selectedOutputType === 'instructions' && generatedInstructions"
-        class="mt-8"
-      >
-        <div class="flex">
-          <!-- Sidebar -->
-          <div class="w-1/4 bg-gray-100 p-4 rounded-md">
-            <h2 class="text-lg font-semibold mb-4">Generated Instructions</h2>
-            <ul>
-              <li
-                *ngFor="let docKey of generatedInstructions | keys"
-                (click)="onDocumentSelect(docKey)"
-                [class.bg-blue-100]="docKey === selectedDocumentKey"
-                class="p-2 cursor-pointer hover:bg-blue-50 rounded"
-              >
-                {{ docKey }}
-              </li>
-            </ul>
-          </div>
-
-          <!-- Content Display Area -->
-          <div class="w-3/4 p-4">
-            <div *ngIf="selectedDocumentKey; else placeholder">
-              <h3 class="text-xl font-medium mb-4">
-                {{ selectedDocumentKey }}
-              </h3>
-              <!-- Render the markdown content -->
-              <markdown
-                ngPreserveWhitespaces
-                [data]="generatedInstructions[selectedDocumentKey]"
-              ></markdown>
-            </div>
-            <ng-template #placeholder>
-              <p class="text-gray-500 italic">
-                Select a document from the sidebar to view its content.
-              </p>
-            </ng-template>
-          </div>
-        </div>
-      </div>
+      <app-previewer
+        [generatedDocumentation]="generatedDocumentation"
+        [generatedInstructions]="generatedInstructions"
+      ></app-previewer>
 
       <!-- Error Message -->
       <div *ngIf="errorMessage" class="mt-4">

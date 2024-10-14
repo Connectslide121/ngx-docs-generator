@@ -1,36 +1,35 @@
 import { Component } from '@angular/core';
-import {
-  FileProcessingService,
-  ComponentInfo,
-} from '../../services/file-processing.service';
+import { FileProcessingService } from '../../services/file-processing.service';
 import { OpenaiService } from '../../services/openai.service';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { MarkdownComponent, provideMarkdown } from 'ngx-markdown';
-import { KeysPipe } from '../../pipes/keys.pipe';
+import { PreviewerComponent } from '../previewer/previewer.component';
+import { ComponentInfo } from '../../models/componentInfo';
 
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [CommonModule, KeysPipe, MarkdownComponent],
+  imports: [CommonModule, PreviewerComponent],
   templateUrl: './upload.component.html',
   styleUrls: ['./upload.component.scss'],
-  providers: [provideMarkdown()],
 })
 export class UploadComponent {
   selectedFiles: { file: File; relativePath: string }[] = [];
-  generatedDocumentation: { [key: string]: string } | null = null;
-  generatedInstructions: { [key: string]: string } | null = null;
+  generatedDocumentation: {
+    [key: string]: { type: string; content: string };
+  } = {};
+  generatedInstructions: {
+    [key: string]: { type: string; content: string };
+  } = {};
   isDocumentationProcessing: boolean = false;
   isInstructionsProcessing: boolean = false;
   errorMessage: string = '';
 
   selectedDocumentKey: string | null = null;
   currentProcess: 'documentation' | 'instructions' | null = null;
-  selectedOutputType: 'documentation' | 'instructions' = 'documentation';
 
   constructor(
     private fileProcessingService: FileProcessingService,
@@ -40,18 +39,20 @@ export class UploadComponent {
 
   onFileSelected(event: any): void {
     const files = event.target.files;
-    this.selectedFiles = [];
+    const selected: { file: File; relativePath: string }[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const relativePath =
         file.webkitRelativePath || file.relativePath || file.name; // Fallback to file name
 
-      this.selectedFiles.push({
+      selected.push({
         file: file,
-        relativePath: relativePath,
+        relativePath: relativePath.replace(/\\/g, '/'), // Normalize path separators
       });
     }
+
+    this.selectedFiles = selected;
   }
 
   async generateDocumentation(): Promise<void> {
@@ -61,10 +62,8 @@ export class UploadComponent {
     }
 
     this.isDocumentationProcessing = true;
-    this.generatedDocumentation = {};
 
     try {
-      // Pass the files to processFiles
       const componentInfos = await this.fileProcessingService.processFiles(
         this.selectedFiles.map((item) => item.file)
       );
@@ -82,21 +81,27 @@ export class UploadComponent {
             () =>
               firstValueFrom(
                 this.openaiService.generateDocumentation(
+                  componentInfo.relativePath!,
                   componentInfo.sourceCode,
                   template
                 )
               ),
-            5, // Number of retries
-            60000, // Initial delay in milliseconds (1 minute)
-            2 // Backoff factor (delay doubles each time)
+            5,
+            60000,
+            2
           );
 
           const documentation = response.choices[0]?.message?.content;
-          const key = componentInfo.relativePath;
+          const key = componentInfo.relativePath!.replace(/\\/g, '/');
 
-          // Only add to generatedDocumentation if documentation is generated
           if (documentation && key) {
-            this.generatedDocumentation[key] = documentation;
+            this.generatedDocumentation[key] = {
+              type: componentInfo.templateName,
+              content: documentation,
+            };
+
+            // Trigger change detection
+            this.generatedDocumentation = { ...this.generatedDocumentation };
           }
         } catch (error) {
           console.error('Error generating documentation:', error);
@@ -130,24 +135,19 @@ export class UploadComponent {
                 attempt + 1
               }: Received 429 Too Many Requests. Waiting for ${currentDelay}ms before retrying...`
             );
-            // Wait for the current delay before retrying
             await new Promise((resolve) => setTimeout(resolve, currentDelay));
-            // Increase the delay for the next retry
             currentDelay *= backoffFactor;
             attempt++;
           } else {
-            // Max retries reached, throw the error
             throw new Error(
               `Max retries reached. Unable to complete the request.`
             );
           }
         } else {
-          // If it's not a 429 error, rethrow it
           throw error;
         }
       }
     }
-    // This point should not be reached
     throw new Error('An unexpected error occurred during retries.');
   }
 
@@ -164,110 +164,80 @@ export class UploadComponent {
   }
 
   async downloadDocumentation(): Promise<void> {
-    const zip = new JSZip();
-
-    for (const relativePath in this.generatedDocumentation) {
-      const documentation = this.generatedDocumentation[relativePath];
-
-      // Remove the last directory from the path
-      const markdownPath = this.removeLastDirectory(relativePath).replace(
-        /\.[^/.]+$/,
-        '.md'
-      );
-
-      zip.file(markdownPath, documentation);
-    }
-
-    const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, 'documentation.zip');
-  }
-
-  removeLastDirectory(path: string): string {
-    const pathParts = path.split('/');
-    if (pathParts.length > 1) {
-      // Remove the second-to-last part if the last part is a file name
-      pathParts.splice(pathParts.length - 2, 1);
-    }
-    return pathParts.join('/');
-  }
-
-  onDocumentSelect(key: string): void {
-    this.selectedDocumentKey = key;
-  }
-
-  async generateUserInstructions(): Promise<void> {
-    if (this.selectedFiles.length === 0) {
-      alert('Please select files first.');
+    if (!this.generatedDocumentation) {
+      console.error('No documentation available to download.');
       return;
     }
 
-    this.isInstructionsProcessing = true;
-    this.currentProcess = 'instructions';
-    this.generatedInstructions = {};
-
-    try {
-      // Pass the files to processFiles
-      const componentInfos = await this.fileProcessingService.processFiles(
-        this.selectedFiles.map((item) => item.file)
-      );
-
-      // Filter to include only components
-      const componentOnlyInfos = componentInfos.filter(
-        (info) => info.templateName === 'component'
-      );
-
-      for (const componentInfo of componentOnlyInfos) {
-        // Load the component's HTML template
-        const htmlTemplate = await this.loadHtmlTemplate(componentInfo);
-
-        // Combine TypeScript and HTML code
-        const combinedCode = `${componentInfo.sourceCode}\n\nTemplate HTML:\n${htmlTemplate}`;
-        console.log('Html Template:', htmlTemplate);
-
-        try {
-          const response = await this.retryWithBackoff(
-            () =>
-              firstValueFrom(
-                this.openaiService.generateUserInstructions(combinedCode)
-              ),
-            5, // Number of retries
-            60000, // Initial delay in milliseconds (1 minute)
-            2 // Backoff factor (delay doubles each time)
-          );
-
-          const instructions = response.choices[0]?.message?.content;
-          const key = componentInfo.relativePath;
-
-          // Only add to generatedInstructions if instructions are generated
-          if (instructions && key) {
-            this.generatedInstructions[key] = instructions;
-          }
-        } catch (error) {
-          console.error('Error generating user instructions:', error);
-        }
-      }
-    } catch (error) {
-      console.error('An error occurred:', error);
-      this.errorMessage = 'An error occurred while processing the files.';
-    } finally {
-      this.isInstructionsProcessing = false;
-      this.currentProcess = null;
-    }
+    await this.downloadZip(this.generatedDocumentation, 'documentation.zip');
   }
 
-  // New method to load HTML template
+  async downloadInstructions(): Promise<void> {
+    if (!this.generatedInstructions) {
+      console.error('No instructions available to download.');
+      return;
+    }
+
+    await this.downloadZip(this.generatedInstructions, 'instructions.zip');
+  }
+
+  private async downloadZip(
+    data: { [key: string]: { type: string; content: string } },
+    zipFileName: string
+  ): Promise<void> {
+    const zip = new JSZip();
+
+    for (const relativePath in data) {
+      const { type, content } = data[relativePath];
+      const folderName = this.getFolderName(type);
+      const markdownFileName = this.toMarkdownFileName(relativePath);
+      const markdownPath = `${folderName}/${markdownFileName}`;
+      zip.file(markdownPath, content);
+    }
+
+    const contentBlob = await zip.generateAsync({ type: 'blob' });
+    saveAs(contentBlob, zipFileName);
+  }
+
+  private getFolderName(type: string): string {
+    const typeToFolderMap: { [key: string]: string } = {
+      component: 'components',
+      service: 'services',
+      interceptor: 'interceptors',
+      guard: 'guards',
+      resolver: 'resolvers',
+      directive: 'directives',
+      pipe: 'pipes',
+      module: 'modules',
+      interface: 'interfaces',
+      enum: 'enums',
+      type: 'types',
+      constant: 'constants',
+      // Add more mappings as needed
+    };
+
+    return typeToFolderMap[type] || 'others';
+  }
+
+  private toMarkdownFileName(relativePath: string): string {
+    const baseName =
+      relativePath
+        .split('/')
+        .pop()
+        ?.replace(/\.[^/.]+$/, '') || 'untitled';
+    return `${baseName}.md`;
+  }
+
   async loadHtmlTemplate(componentInfo: ComponentInfo): Promise<string> {
     if (!componentInfo.templateUrl) {
       return '';
     }
 
-    // Get the directory of the component TypeScript file
     const componentDir = componentInfo.relativePath?.substring(
       0,
       componentInfo.relativePath.lastIndexOf('/')
     );
 
-    // Resolve the template path relative to the component directory
     const templateRelativePath = componentInfo.templateUrl.replace('./', '');
     const templatePath = `${componentDir}/${templateRelativePath}`;
 
@@ -288,22 +258,81 @@ export class UploadComponent {
     }
   }
 
-  async downloadInstructions(): Promise<void> {
-    const zip = new JSZip();
-
-    for (const relativePath in this.generatedInstructions) {
-      const instructions = this.generatedInstructions[relativePath];
-
-      // Remove the last directory from the path and change extension to .md
-      const markdownPath = this.removeLastDirectory(relativePath).replace(
-        /\.[^/.]+$/,
-        '.md'
-      );
-
-      zip.file(markdownPath, instructions);
+  async generateUserInstructions(): Promise<void> {
+    if (this.selectedFiles.length === 0) {
+      alert('Please select files first.');
+      return;
     }
 
-    const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, 'instructions.zip');
+    this.isInstructionsProcessing = true;
+    this.currentProcess = 'instructions';
+
+    try {
+      const componentInfos = await this.fileProcessingService.processFiles(
+        this.selectedFiles.map((item) => item.file)
+      );
+
+      const componentOnlyInfos = componentInfos.filter(
+        (info) => info.templateName === 'component'
+      );
+
+      for (const componentInfo of componentOnlyInfos) {
+        const htmlTemplate = await this.loadHtmlTemplate(componentInfo);
+        const combinedCode = `${componentInfo.sourceCode}\n\nTemplate HTML:\n${htmlTemplate}`;
+
+        try {
+          const response = await this.retryWithBackoff(
+            () =>
+              firstValueFrom(
+                this.openaiService.generateUserInstructions(combinedCode)
+              ),
+            5,
+            60000,
+            2
+          );
+
+          const instructions = response.choices[0]?.message?.content;
+          const key = componentInfo.relativePath!.replace(/\\/g, '/');
+
+          if (instructions && key) {
+            this.generatedInstructions[key] = {
+              type: componentInfo.templateName,
+              content: instructions,
+            };
+            console.log(
+              'Generated Instructions for',
+              key,
+              ':',
+              this.generatedInstructions[key]
+            );
+
+            // Trigger change detection
+            this.generatedInstructions = { ...this.generatedInstructions };
+          }
+        } catch (error) {
+          console.error('Error generating user instructions:', error);
+        }
+      }
+
+      console.log('Final Generated Instructions:', this.generatedInstructions);
+    } catch (error) {
+      console.error('An error occurred:', error);
+      this.errorMessage = 'An error occurred while processing the files.';
+    } finally {
+      this.isInstructionsProcessing = false;
+      this.currentProcess = null;
+    }
+  }
+
+  removeLastDirectory(path: string): string {
+    const pathParts = path.split('/');
+    if (pathParts.length > 1) {
+      pathParts.splice(pathParts.length - 2, 1);
+    }
+    return pathParts.join('/');
+  }
+
+  onDocumentSelect(key: string): void {
+    this.selectedDocumentKey = key;
   }
 }

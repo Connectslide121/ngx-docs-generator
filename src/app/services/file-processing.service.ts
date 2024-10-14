@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import ts from 'typescript';
+import { ComponentInfo } from '../models/componentInfo';
 
 @Injectable({
   providedIn: 'root',
@@ -180,13 +181,4 @@ export class FileProcessingService {
 
     return componentInfos;
   }
-}
-
-export interface ComponentInfo {
-  name?: string;
-  className?: string;
-  templateName: string;
-  sourceCode: string;
-  relativePath?: string;
-  templateUrl?: string;
 }
