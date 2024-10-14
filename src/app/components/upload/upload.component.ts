@@ -23,10 +23,14 @@ import { KeysPipe } from '../../pipes/keys.pipe';
 export class UploadComponent {
   selectedFiles: { file: File; relativePath: string }[] = [];
   generatedDocumentation: { [key: string]: string } | null = null;
-  processing: boolean = false;
+  generatedInstructions: { [key: string]: string } | null = null;
+  isDocumentationProcessing: boolean = false;
+  isInstructionsProcessing: boolean = false;
   errorMessage: string = '';
 
   selectedDocumentKey: string | null = null;
+  currentProcess: 'documentation' | 'instructions' | null = null;
+  selectedOutputType: 'documentation' | 'instructions' = 'documentation';
 
   constructor(
     private fileProcessingService: FileProcessingService,
@@ -56,7 +60,7 @@ export class UploadComponent {
       return;
     }
 
-    this.processing = true;
+    this.isDocumentationProcessing = true;
     this.generatedDocumentation = {};
 
     try {
@@ -102,7 +106,7 @@ export class UploadComponent {
       console.error('An error occurred:', error);
       this.errorMessage = 'An error occurred while processing the files.';
     } finally {
-      this.processing = false;
+      this.isDocumentationProcessing = false;
     }
   }
 
@@ -189,5 +193,117 @@ export class UploadComponent {
 
   onDocumentSelect(key: string): void {
     this.selectedDocumentKey = key;
+  }
+
+  async generateUserInstructions(): Promise<void> {
+    if (this.selectedFiles.length === 0) {
+      alert('Please select files first.');
+      return;
+    }
+
+    this.isInstructionsProcessing = true;
+    this.currentProcess = 'instructions';
+    this.generatedInstructions = {};
+
+    try {
+      // Pass the files to processFiles
+      const componentInfos = await this.fileProcessingService.processFiles(
+        this.selectedFiles.map((item) => item.file)
+      );
+
+      // Filter to include only components
+      const componentOnlyInfos = componentInfos.filter(
+        (info) => info.templateName === 'component'
+      );
+
+      for (const componentInfo of componentOnlyInfos) {
+        // Load the component's HTML template
+        const htmlTemplate = await this.loadHtmlTemplate(componentInfo);
+
+        // Combine TypeScript and HTML code
+        const combinedCode = `${componentInfo.sourceCode}\n\nTemplate HTML:\n${htmlTemplate}`;
+        console.log('Html Template:', htmlTemplate);
+
+        try {
+          const response = await this.retryWithBackoff(
+            () =>
+              firstValueFrom(
+                this.openaiService.generateUserInstructions(combinedCode)
+              ),
+            5, // Number of retries
+            60000, // Initial delay in milliseconds (1 minute)
+            2 // Backoff factor (delay doubles each time)
+          );
+
+          const instructions = response.choices[0]?.message?.content;
+          const key = componentInfo.relativePath;
+
+          // Only add to generatedInstructions if instructions are generated
+          if (instructions && key) {
+            this.generatedInstructions[key] = instructions;
+          }
+        } catch (error) {
+          console.error('Error generating user instructions:', error);
+        }
+      }
+    } catch (error) {
+      console.error('An error occurred:', error);
+      this.errorMessage = 'An error occurred while processing the files.';
+    } finally {
+      this.isInstructionsProcessing = false;
+      this.currentProcess = null;
+    }
+  }
+
+  // New method to load HTML template
+  async loadHtmlTemplate(componentInfo: ComponentInfo): Promise<string> {
+    if (!componentInfo.templateUrl) {
+      return '';
+    }
+
+    // Get the directory of the component TypeScript file
+    const componentDir = componentInfo.relativePath?.substring(
+      0,
+      componentInfo.relativePath.lastIndexOf('/')
+    );
+
+    // Resolve the template path relative to the component directory
+    const templateRelativePath = componentInfo.templateUrl.replace('./', '');
+    const templatePath = `${componentDir}/${templateRelativePath}`;
+
+    try {
+      const matchingFile = this.selectedFiles.find((item) =>
+        item.relativePath.endsWith(templatePath)
+      );
+
+      if (matchingFile) {
+        return await matchingFile.file.text();
+      } else {
+        console.warn(`Template file not found for ${templatePath}`);
+        return '';
+      }
+    } catch (error) {
+      console.error(`Error loading template ${templatePath}:`, error);
+      return '';
+    }
+  }
+
+  async downloadInstructions(): Promise<void> {
+    const zip = new JSZip();
+
+    for (const relativePath in this.generatedInstructions) {
+      const instructions = this.generatedInstructions[relativePath];
+
+      // Remove the last directory from the path and change extension to .md
+      const markdownPath = this.removeLastDirectory(relativePath).replace(
+        /\.[^/.]+$/,
+        '.md'
+      );
+
+      zip.file(markdownPath, instructions);
+    }
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    saveAs(content, 'instructions.zip');
   }
 }

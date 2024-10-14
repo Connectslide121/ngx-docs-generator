@@ -48,6 +48,7 @@ export class FileProcessingService {
         const decorators = ts.getDecorators(node);
 
         let templateName = '';
+        let templateUrl = '';
 
         if (decorators) {
           decorators.forEach((decorator) => {
@@ -58,6 +59,27 @@ export class FileProcessingService {
               // Match decorator to template
               if (decoratorName === 'Component') {
                 templateName = 'component';
+
+                // Get the @Component decorator argument
+                const args = expression.arguments;
+                if (args.length > 0) {
+                  const arg = args[0];
+                  if (ts.isObjectLiteralExpression(arg)) {
+                    arg.properties.forEach((prop) => {
+                      if (
+                        ts.isPropertyAssignment(prop) &&
+                        ts.isIdentifier(prop.name)
+                      ) {
+                        const propName = prop.name.text;
+                        if (propName === 'templateUrl') {
+                          if (ts.isStringLiteral(prop.initializer)) {
+                            templateUrl = prop.initializer.text;
+                          }
+                        }
+                      }
+                    });
+                  }
+                }
               } else if (decoratorName === 'Directive') {
                 templateName = 'directive';
               } else if (decoratorName === 'Injectable') {
@@ -99,7 +121,12 @@ export class FileProcessingService {
 
         if (templateName) {
           const sourceCode = node.getText(sourceFile);
-          componentInfos.push({ className, templateName, sourceCode });
+          componentInfos.push({
+            className,
+            templateName,
+            sourceCode,
+            templateUrl,
+          });
         }
       } else if (ts.isInterfaceDeclaration(node)) {
         const interfaceName = node.name.text;
@@ -161,4 +188,5 @@ export interface ComponentInfo {
   templateName: string;
   sourceCode: string;
   relativePath?: string;
+  templateUrl?: string;
 }

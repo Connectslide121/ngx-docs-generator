@@ -46,10 +46,10 @@
         <div class="flex space-x-2">
           <button
             (click)="generateDocumentation()"
-            [disabled]="!selectedFiles.length || processing"
+            [disabled]="!selectedFiles.length || isDocumentationProcessing"
             class="w-60 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ng-container *ngIf="processing; else generateText">
+            <ng-container *ngIf="isDocumentationProcessing; else generateText">
               <div class="flex items-center justify-center">
                 <svg
                   class="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
@@ -78,11 +78,60 @@
           </button>
 
           <button
+            (click)="generateUserInstructions()"
+            [disabled]="!selectedFiles.length || isInstructionsProcessing"
+            class="w-60 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ng-container
+              *ngIf="
+                isInstructionsProcessing && currentProcess === 'instructions';
+                else generateInstructionsText
+              "
+            >
+              <div class="flex items-center justify-center">
+                <!-- Loading indicator -->
+                <svg
+                  class="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span>Processing...</span>
+              </div>
+            </ng-container>
+            <ng-template #generateInstructionsText
+              >Generate User Instructions</ng-template
+            >
+          </button>
+
+          <button
             (click)="downloadDocumentation()"
-            [disabled]="processing || !generatedDocumentation"
+            [disabled]="isDocumentationProcessing || !generatedDocumentation"
             class="w-60 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Download Documentation
+          </button>
+
+          <button
+            (click)="downloadInstructions()"
+            [disabled]="isInstructionsProcessing || !generatedInstructions"
+            class="w-60 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Download Instructions
           </button>
         </div>
       </div>
@@ -91,7 +140,27 @@
         <p class="text-sm text-red-500">{{ errorMessage }}</p>
       </div>
 
-      <div *ngIf="generatedDocumentation" class="mt-8">
+      <div class="mt-4 flex space-x-4">
+        <button
+          (click)="selectedOutputType = 'documentation'"
+          [class.font-bold]="selectedOutputType === 'documentation'"
+          class="text-blue-500"
+        >
+          Documentation
+        </button>
+        <button
+          (click)="selectedOutputType = 'instructions'"
+          [class.font-bold]="selectedOutputType === 'instructions'"
+          class="text-green-500"
+        >
+          User Instructions
+        </button>
+      </div>
+
+      <div
+        *ngIf="selectedOutputType === 'documentation' && generatedDocumentation"
+        class="mt-8"
+      >
         <div class="flex">
           <!-- Sidebar -->
           <div class="w-1/4 bg-gray-100 p-4 rounded-md">
@@ -118,6 +187,46 @@
               <markdown
                 ngPreserveWhitespaces
                 [data]="generatedDocumentation[selectedDocumentKey]"
+              ></markdown>
+            </div>
+            <ng-template #placeholder>
+              <p class="text-gray-500 italic">
+                Select a document from the sidebar to view its content.
+              </p>
+            </ng-template>
+          </div>
+        </div>
+      </div>
+      <div
+        *ngIf="selectedOutputType === 'instructions' && generatedInstructions"
+        class="mt-8"
+      >
+        <div class="flex">
+          <!-- Sidebar -->
+          <div class="w-1/4 bg-gray-100 p-4 rounded-md">
+            <h2 class="text-lg font-semibold mb-4">Generated Instructions</h2>
+            <ul>
+              <li
+                *ngFor="let docKey of generatedInstructions | keys"
+                (click)="onDocumentSelect(docKey)"
+                [class.bg-blue-100]="docKey === selectedDocumentKey"
+                class="p-2 cursor-pointer hover:bg-blue-50 rounded"
+              >
+                {{ docKey }}
+              </li>
+            </ul>
+          </div>
+
+          <!-- Content Display Area -->
+          <div class="w-3/4 p-4">
+            <div *ngIf="selectedDocumentKey; else placeholder">
+              <h3 class="text-xl font-medium mb-4">
+                {{ selectedDocumentKey }}
+              </h3>
+              <!-- Render the markdown content -->
+              <markdown
+                ngPreserveWhitespaces
+                [data]="generatedInstructions[selectedDocumentKey]"
               ></markdown>
             </div>
             <ng-template #placeholder>
