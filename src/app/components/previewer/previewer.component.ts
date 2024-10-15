@@ -53,6 +53,14 @@ export class PreviewerComponent implements OnChanges {
       );
       this.oldInstructionsTree = this.instructionsTree;
     }
+    if (
+      this.generatedInstructions &&
+      Object.keys(this.generatedInstructions).length > 0 &&
+      (!this.generatedDocumentation ||
+        Object.keys(this.generatedDocumentation).length === 0)
+    ) {
+      this.selectedOutputType = 'instructions';
+    }
   }
 
   private mergeTreeState(oldTree: TreeNode[], newTree: TreeNode[]): TreeNode[] {
