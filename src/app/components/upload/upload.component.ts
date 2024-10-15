@@ -280,12 +280,6 @@ export class UploadComponent {
               type: componentInfo.templateName,
               content: instructions,
             };
-            console.log(
-              'Generated Instructions for',
-              key,
-              ':',
-              this.generatedInstructions[key]
-            );
 
             // Trigger change detection
             this.generatedInstructions = { ...this.generatedInstructions };
