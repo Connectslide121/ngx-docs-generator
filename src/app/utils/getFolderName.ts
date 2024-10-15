@@ -15,5 +15,5 @@ export function getFolderName(type: string): string {
     // Add more mappings as needed
   };
 
-  return typeToFolderMap[type] || 'others';
+  return typeToFolderMap[type] || 'Others';
 }

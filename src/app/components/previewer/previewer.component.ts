@@ -92,11 +92,13 @@ export class PreviewerComponent implements OnChanges {
   }
 
   get currentTree(): TreeNode[] {
-    return this.selectedOutputType === 'documentation'
-      ? this.documentationTree
-      : this.instructionsTree;
-  }
+    const tree =
+      this.selectedOutputType === 'documentation'
+        ? this.documentationTree
+        : this.instructionsTree;
 
+    return tree || [];
+  }
   get currentTitle(): string {
     return this.selectedOutputType === 'documentation'
       ? 'Generated Documentation'
@@ -112,10 +114,24 @@ export class PreviewerComponent implements OnChanges {
 
     for (const relativePath in data) {
       const { type } = data[relativePath];
+      const isFaq = type === 'faqs';
+
+      // If it's an FAQ, add it directly to the root level with a consistent name
+      if (isFaq) {
+        const faqNode = tree.find((node) => node.name === 'FAQs');
+        if (!faqNode) {
+          tree.push({
+            name: 'FAQs',
+            isFolder: false,
+            expanded: false,
+            path: relativePath,
+          });
+        }
+        continue;
+      }
+
       const folderName = getFolderName(type);
       const markdownFileName = this.toMarkdownFileName(relativePath);
-
-      // Build a path similar to the one used in the zip
       const normalizedPath = `${folderName}/${markdownFileName}`;
       const parts = normalizedPath.split('/');
 

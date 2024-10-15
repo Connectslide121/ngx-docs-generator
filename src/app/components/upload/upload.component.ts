@@ -29,6 +29,7 @@ export class UploadComponent {
   } = {};
   isDocumentationProcessing: boolean = false;
   isInstructionsProcessing: boolean = false;
+  isFAQsProcessing: boolean = false;
   errorMessage: string = '';
 
   selectedDocumentKey: string | null = null;
@@ -215,15 +216,6 @@ export class UploadComponent {
     await this.downloadZip(this.generatedDocumentation, 'documentation.zip');
   }
 
-  async downloadInstructions(): Promise<void> {
-    if (!this.generatedInstructions) {
-      console.error('No instructions available to download.');
-      return;
-    }
-
-    await this.downloadZip(this.generatedInstructions, 'instructions.zip');
-  }
-
   private async downloadZip(
     data: { [key: string]: { type: string; content: string } },
     zipFileName: string
@@ -232,9 +224,14 @@ export class UploadComponent {
 
     for (const relativePath in data) {
       const { type, content } = data[relativePath];
-      const folderName = getFolderName(type);
       const markdownFileName = this.toMarkdownFileName(relativePath);
-      const markdownPath = `${folderName}/${markdownFileName}`;
+
+      // If the type is 'faqs', place it directly at the root level
+      const markdownPath =
+        type === 'faqs'
+          ? markdownFileName
+          : `${getFolderName(type)}/${markdownFileName}`;
+
       zip.file(markdownPath, content);
     }
 
@@ -358,6 +355,15 @@ export class UploadComponent {
     }
   }
 
+  async downloadInstructions(): Promise<void> {
+    if (!this.generatedInstructions) {
+      console.error('No instructions available to download.');
+      return;
+    }
+
+    await this.downloadZip(this.generatedInstructions, 'instructions.zip');
+  }
+
   removeLastDirectory(path: string): string {
     const pathParts = path.split('/');
     if (pathParts.length > 1) {
@@ -376,5 +382,65 @@ export class UploadComponent {
 
   isGeneratedInstructionsEmpty(): boolean {
     return Object.keys(this.generatedInstructions).length === 0;
+  }
+
+  async generateFAQs(): Promise<void> {
+    if (this.isGeneratedInstructionsEmpty()) {
+      alert('Please generate instructions first.');
+      return;
+    }
+
+    this.isFAQsProcessing = true;
+
+    const progressKey = 'faqs';
+
+    this.progressService.setProgressState(progressKey, {
+      isVisible: true,
+      totalItems: 1,
+      completedItems: 0,
+      isWaitingForRetry: false,
+      statusText: '',
+    });
+
+    try {
+      const allInstructions = Object.values(this.generatedInstructions)
+        .map((instruction) => instruction.content)
+        .join('\n\n');
+
+      const response = await firstValueFrom(
+        this.openaiService.generateFAQs(allInstructions)
+      );
+
+      const faqs = response.choices[0]?.message?.content;
+      const faqKey = 'faqs';
+
+      if (faqs) {
+        this.generatedInstructions[faqKey] = {
+          type: 'faqs',
+          content: faqs,
+        };
+
+        // Trigger change detection
+        this.generatedInstructions = { ...this.generatedInstructions };
+      }
+    } catch (error) {
+      console.error('Error generating FAQs:', error);
+    } finally {
+      this.progressService.removeProgressState(progressKey);
+      this.isFAQsProcessing = false;
+    }
+  }
+
+  async downloadFAQs(): Promise<void> {
+    if (!this.generatedInstructions['faqs']) {
+      console.error('No FAQs available to download.');
+      return;
+    }
+
+    const faqsData = {
+      faqs: this.generatedInstructions['faqs'],
+    };
+
+    await this.downloadZip(faqsData, 'faqs.zip');
   }
 }

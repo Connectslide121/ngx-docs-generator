@@ -77,4 +77,30 @@ export class OpenaiService {
 
     return this.http.post(this.apiUrl, body, { headers });
   }
+
+  generateFAQs(instructions: string): Observable<any> {
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json',
+      'api-key': this.apiKey,
+    });
+
+    const messages = [
+      {
+        role: 'system',
+        content: `You are a helpful assistant. Based on the user instructions provided, generate a list of frequently asked questions (FAQs) that users might have about the application. Provide concise and clear answers to each question.`,
+      },
+      {
+        role: 'user',
+        content: `Here are the user instructions that I want to generate FAQs for:
+      ${instructions}
+      `,
+      },
+    ];
+
+    const body = {
+      messages: messages,
+    };
+
+    return this.http.post(this.apiUrl, body, { headers });
+  }
 }
