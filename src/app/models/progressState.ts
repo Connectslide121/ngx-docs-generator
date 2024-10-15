@@ -5,4 +5,5 @@ export interface ProgressState {
   completedItems: number;
   isWaitingForRetry: boolean;
   statusText: string;
+  retryCountdown?: number;
 }

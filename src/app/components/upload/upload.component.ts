@@ -105,7 +105,8 @@ export class UploadComponent {
               ),
             5,
             60000,
-            2
+            2,
+            progressKey
           );
 
           const documentation = response.choices[0]?.message?.content;
@@ -151,20 +152,26 @@ export class UploadComponent {
         return await fn();
       } catch (error: any) {
         if (error.status === 429) {
-          // Update progress state to indicate waiting due to rate limit
-          if (progressKey) {
-            this.progressService.setProgressState(progressKey, {
-              isWaitingForRetry: true,
-            });
-          }
-
           if (attempt < retries) {
             console.warn(
               `Attempt ${
                 attempt + 1
               }: Received 429 Too Many Requests. Waiting for ${currentDelay}ms before retrying...`
             );
-            await new Promise((resolve) => setTimeout(resolve, currentDelay));
+
+            this.progressService.setProgressState(progressKey!, {
+              isWaitingForRetry: true,
+              retryCountdown: currentDelay / 1000, // Set initial countdown
+            });
+
+            // Countdown logic
+            for (let i = currentDelay / 1000; i > 0; i--) {
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              this.progressService.setProgressState(progressKey!, {
+                retryCountdown: i - 1,
+              });
+            }
+
             currentDelay *= backoffFactor;
             attempt++;
           } else {
@@ -176,10 +183,10 @@ export class UploadComponent {
           throw error;
         }
       } finally {
-        // Reset the waiting state after each attempt
         if (progressKey) {
           this.progressService.setProgressState(progressKey, {
             isWaitingForRetry: false,
+            retryCountdown: undefined, // Reset countdown
           });
         }
       }
@@ -318,7 +325,8 @@ export class UploadComponent {
               ),
             5,
             60000,
-            2
+            2,
+            progressKey
           );
 
           const instructions = response.choices[0]?.message?.content;
@@ -340,8 +348,6 @@ export class UploadComponent {
         completedItems++;
         this.progressService.setProgressState(progressKey, { completedItems });
       }
-
-      console.log('Final Generated Instructions:', this.generatedInstructions);
     } catch (error) {
       console.error('An error occurred:', error);
       this.errorMessage = 'An error occurred while processing the files.';

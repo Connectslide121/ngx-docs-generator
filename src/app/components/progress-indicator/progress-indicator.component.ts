@@ -17,12 +17,6 @@ import { ProgressState } from '../../models/progressState';
 export class ProgressIndicatorComponent {
   @Input() progressState!: ProgressState;
 
-  constructor(private cdr: ChangeDetectorRef) {}
-
-  ngOnChanges(): void {
-    this.cdr.detectChanges();
-  }
-
   get progressPercentage(): number {
     return (
       (this.progressState.completedItems / this.progressState.totalItems) * 100
