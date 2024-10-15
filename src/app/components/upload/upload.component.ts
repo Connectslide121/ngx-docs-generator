@@ -8,6 +8,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { PreviewerComponent } from '../previewer/previewer.component';
 import { ComponentInfo } from '../../models/componentInfo';
+import { getFolderName } from '../../utils/getFolderName';
 
 @Component({
   selector: 'app-upload',
@@ -189,7 +190,7 @@ export class UploadComponent {
 
     for (const relativePath in data) {
       const { type, content } = data[relativePath];
-      const folderName = this.getFolderName(type);
+      const folderName = getFolderName(type);
       const markdownFileName = this.toMarkdownFileName(relativePath);
       const markdownPath = `${folderName}/${markdownFileName}`;
       zip.file(markdownPath, content);
@@ -197,26 +198,6 @@ export class UploadComponent {
 
     const contentBlob = await zip.generateAsync({ type: 'blob' });
     saveAs(contentBlob, zipFileName);
-  }
-
-  private getFolderName(type: string): string {
-    const typeToFolderMap: { [key: string]: string } = {
-      component: 'components',
-      service: 'services',
-      interceptor: 'interceptors',
-      guard: 'guards',
-      resolver: 'resolvers',
-      directive: 'directives',
-      pipe: 'pipes',
-      module: 'modules',
-      interface: 'interfaces',
-      enum: 'enums',
-      type: 'types',
-      constant: 'constants',
-      // Add more mappings as needed
-    };
-
-    return typeToFolderMap[type] || 'others';
   }
 
   private toMarkdownFileName(relativePath: string): string {
@@ -334,5 +315,13 @@ export class UploadComponent {
 
   onDocumentSelect(key: string): void {
     this.selectedDocumentKey = key;
+  }
+
+  isGeneratedDocumentationEmpty(): boolean {
+    return Object.keys(this.generatedDocumentation).length === 0;
+  }
+
+  isGeneratedInstructionsEmpty(): boolean {
+    return Object.keys(this.generatedInstructions).length === 0;
   }
 }

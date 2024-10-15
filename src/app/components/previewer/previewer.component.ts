@@ -4,6 +4,7 @@ import { MarkdownModule } from 'ngx-markdown';
 import { KeysPipe } from '../../pipes/keys.pipe';
 import { TreeNode } from '../../models/treeNode';
 import { TreeNodeComponent } from '../tree-node/tree-node.component';
+import { getFolderName } from '../../utils/getFolderName';
 
 @Component({
   selector: 'app-previewer',
@@ -101,48 +102,54 @@ export class PreviewerComponent implements OnChanges {
 
     const tree: TreeNode[] = [];
 
-    Object.keys(data).forEach((path) => {
-      const normalizedPath = path.replace(/\\/g, '/');
-      const parts = normalizedPath.split('/');
-      const isComponent = data[path].type === 'component';
+    for (const relativePath in data) {
+      const { type } = data[relativePath];
+      const folderName = getFolderName(type);
+      const markdownFileName = this.toMarkdownFileName(relativePath);
 
-      if (parts.length <= 1) {
-        return;
-      }
+      // Build a path similar to the one used in the zip
+      const normalizedPath = `${folderName}/${markdownFileName}`;
+      const parts = normalizedPath.split('/');
 
       let currentLevel = tree;
-      const depth = isComponent ? parts.length - 2 : parts.length - 1;
 
-      for (let i = 1; i < depth; i++) {
+      for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
         let existingNode = currentLevel.find((node) => node.name === part);
 
         if (!existingNode) {
-          const nodePath = parts.slice(1, i + 1).join('/');
+          const nodePath = parts.slice(0, i + 1).join('/');
+          const isFolder = i < parts.length - 1;
+
           existingNode = {
             name: part,
-            isFolder: true,
+            isFolder: isFolder,
             expanded: this.expandedNodes.get(nodePath) || false,
-            children: [],
+            children: isFolder ? [] : undefined,
+            path: isFolder ? undefined : relativePath,
           };
+
           currentLevel.push(existingNode);
         }
 
-        this.expandedNodes.set(
-          parts.slice(1, i + 1).join('/'),
-          existingNode.expanded!
-        );
-        currentLevel = existingNode.children!;
+        if (existingNode.isFolder && existingNode.children) {
+          currentLevel = existingNode.children;
+        } else {
+          break;
+        }
       }
-
-      currentLevel.push({
-        name: parts[parts.length - 1],
-        isFolder: false,
-        path: normalizedPath,
-      });
-    });
+    }
 
     return tree;
+  }
+
+  private toMarkdownFileName(relativePath: string): string {
+    const baseName =
+      relativePath
+        .split('/')
+        .pop()
+        ?.replace(/\.[^/.]+$/, '') || 'untitled';
+    return `${baseName}.md`;
   }
 
   toggleNode(node: TreeNode): void {

@@ -22,7 +22,7 @@
 </div>
 
 <div *ngIf="currentData && objectKeys(currentData).length > 0" class="mt-8">
-  <div class="flex">
+  <div class="flex gap-4">
     <!-- Sidebar -->
     <div class="w-1/4 bg-gray-100 p-4 rounded-md overflow-auto">
       <h2 class="text-lg font-semibold mb-4">{{ currentTitle }}</h2>
@@ -43,7 +43,6 @@
         <markdown
           class="prose"
           lineNumbers
-          clipboard
           ngPreserveWhitespaces
           [data]="currentData[selectedDocumentKey]!.content"
         ></markdown>

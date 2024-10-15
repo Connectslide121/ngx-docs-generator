@@ -29,7 +29,7 @@ export class OpenaiService {
         content: `Strictly using the following template:
       ${template}
 
-      Don't give any additional explanation, don't include anything like "html-template" with the whole component code. Generate detailed documentation in markdown format for the Angular code provided by the user. Always include the path to the component in the description of the component.
+      Don't give any additional explanation, don't include anything like "html-template" with the whole component code. Generate detailed documentation in markdown format for the Angular code provided by the user. Always include the path to the component in the description of the component. Whenever you write a typescript codeblock, mark it with the language "javascript".
       `,
       },
       {
