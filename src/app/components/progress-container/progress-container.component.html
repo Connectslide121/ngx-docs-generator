@@ -1,0 +1,9 @@
+<div
+  *ngIf="progressStates$ | async as progressStates"
+  class="progress-container"
+>
+  <app-progress-indicator
+    *ngFor="let state of progressStates"
+    [progressState]="state"
+  ></app-progress-indicator>
+</div>

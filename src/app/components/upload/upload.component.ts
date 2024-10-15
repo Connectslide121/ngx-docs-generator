@@ -9,11 +9,13 @@ import { saveAs } from 'file-saver';
 import { PreviewerComponent } from '../previewer/previewer.component';
 import { ComponentInfo } from '../../models/componentInfo';
 import { getFolderName } from '../../utils/getFolderName';
+import { ProgressService } from '../../services/progress.service';
+import { ProgressContainerComponent } from '../progress-container/progress-container.component';
 
 @Component({
   selector: 'app-upload',
   standalone: true,
-  imports: [CommonModule, PreviewerComponent],
+  imports: [CommonModule, PreviewerComponent, ProgressContainerComponent],
   templateUrl: './upload.component.html',
   styleUrls: ['./upload.component.scss'],
 })
@@ -35,7 +37,8 @@ export class UploadComponent {
   constructor(
     private fileProcessingService: FileProcessingService,
     private openaiService: OpenaiService,
-    private http: HttpClient
+    private http: HttpClient,
+    private progressService: ProgressService
   ) {}
 
   onFileSelected(event: any): void {
@@ -62,12 +65,25 @@ export class UploadComponent {
       return;
     }
 
-    this.isDocumentationProcessing = true;
+    const progressKey = 'documentation';
 
+    this.isDocumentationProcessing = true;
+    this.progressService.setProgressState(progressKey, {
+      isVisible: true,
+      totalItems: 0,
+      completedItems: 0,
+      isWaitingForRetry: false,
+      statusText: '',
+    });
     try {
       const componentInfos = await this.fileProcessingService.processFiles(
         this.selectedFiles.map((item) => item.file)
       );
+
+      const totalItems = componentInfos.length;
+      this.progressService.setProgressState(progressKey, { totalItems });
+
+      let completedItems = 0;
 
       for (const componentInfo of componentInfos) {
         const template = await this.loadTemplate(componentInfo.templateName);
@@ -107,12 +123,16 @@ export class UploadComponent {
         } catch (error) {
           console.error('Error generating documentation:', error);
         }
+
+        completedItems++;
+        this.progressService.setProgressState(progressKey, { completedItems });
       }
     } catch (error) {
       console.error('An error occurred:', error);
       this.errorMessage = 'An error occurred while processing the files.';
     } finally {
       this.isDocumentationProcessing = false;
+      this.progressService.removeProgressState(progressKey);
     }
   }
 
@@ -120,7 +140,8 @@ export class UploadComponent {
     fn: () => Promise<T>,
     retries: number,
     delayMs: number,
-    backoffFactor: number
+    backoffFactor: number,
+    progressKey?: string
   ): Promise<T> {
     let attempt = 0;
     let currentDelay = delayMs;
@@ -130,6 +151,13 @@ export class UploadComponent {
         return await fn();
       } catch (error: any) {
         if (error.status === 429) {
+          // Update progress state to indicate waiting due to rate limit
+          if (progressKey) {
+            this.progressService.setProgressState(progressKey, {
+              isWaitingForRetry: true,
+            });
+          }
+
           if (attempt < retries) {
             console.warn(
               `Attempt ${
@@ -146,6 +174,13 @@ export class UploadComponent {
           }
         } else {
           throw error;
+        }
+      } finally {
+        // Reset the waiting state after each attempt
+        if (progressKey) {
+          this.progressService.setProgressState(progressKey, {
+            isWaitingForRetry: false,
+          });
         }
       }
     }
@@ -245,8 +280,17 @@ export class UploadComponent {
       return;
     }
 
+    const progressKey = 'instructions';
+
     this.isInstructionsProcessing = true;
     this.currentProcess = 'instructions';
+    this.progressService.setProgressState(progressKey, {
+      isVisible: true,
+      totalItems: 0,
+      completedItems: 0,
+      isWaitingForRetry: false,
+      statusText: '',
+    });
 
     try {
       const componentInfos = await this.fileProcessingService.processFiles(
@@ -256,6 +300,11 @@ export class UploadComponent {
       const componentOnlyInfos = componentInfos.filter(
         (info) => info.templateName === 'component'
       );
+
+      const totalItems = componentOnlyInfos.length;
+      this.progressService.setProgressState(progressKey, { totalItems });
+
+      let completedItems = 0;
 
       for (const componentInfo of componentOnlyInfos) {
         const htmlTemplate = await this.loadHtmlTemplate(componentInfo);
@@ -287,6 +336,9 @@ export class UploadComponent {
         } catch (error) {
           console.error('Error generating user instructions:', error);
         }
+
+        completedItems++;
+        this.progressService.setProgressState(progressKey, { completedItems });
       }
 
       console.log('Final Generated Instructions:', this.generatedInstructions);
@@ -296,6 +348,7 @@ export class UploadComponent {
     } finally {
       this.isInstructionsProcessing = false;
       this.currentProcess = null;
+      this.progressService.removeProgressState(progressKey);
     }
   }
 
