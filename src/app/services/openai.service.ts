@@ -6,10 +6,9 @@ import { Observable } from 'rxjs';
   providedIn: 'root',
 })
 export class OpenaiService {
-  private apiUrl =
-    'https://openai-av-prod-weu.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-08-01-preview';
+  private apiUrl = '';
 
-  private apiKey = 'fce0ac2350c447ec9f4c5222bce88fb6';
+  private apiKey = '';
 
   constructor(private http: HttpClient) {}
 
@@ -58,7 +57,7 @@ export class OpenaiService {
       {
         role: 'system',
         content: `You are a helpful assistant and you are instructed to, based on  the code provided by the user, generate instructions for the final user of the application, explaining how to use the component.
-        You should generate a markdown file with the instructions for the final user.
+        You should generate a markdown file with the instructions for the final user. Give as many details as possible, and make sure that the instructions are clear and easy to understand for a non-technical user. Don't worry about the length, the longer the instructions are, the better. Make sure that every step is explained and any question the user might have is answered.
       Don't give any additional explanation, don't include any code in the instructions and don't wrap it all in a code block. Keep in mind that the user is not a developer.
       `,
       },
